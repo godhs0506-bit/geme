@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>효도 알람 - 시니어 맞춤 대형 알람 시계</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Gmarket+Sans:wght@500;700&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            touch-action: manipulation;
+        }
+
+        .font-gmarket {
+            font-family: 'Gmarket Sans', sans-serif;
+        }
+
+        /* High contrast utilities */
+        .high-contrast {
+            background-color: #000000 !important;
+            color: #FFFF00 !important;
+        }
+
+        .high-contrast .card-bg {
+            background-color: #1a1a1a !important;
+            border: 3px solid #FFFF00 !important;
+            color: #FFFFFF !important;
+        }
+
+        .high-contrast button.primary {
+            background-color: #FFFF00 !important;
+            color: #000000 !important;
+            font-weight: 900 !important;
+        }
+
+        /* Custom big toggle switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            background-color: #10B981;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #10B981;
+        }
+
+        /* Solid background without flashing effect for triggered alarm */
+        .alarm-active-bg {
+            background-color: #991B1B !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen transition-colors duration-200 pb-12" id="app-body">
+
+    <div id="audio-unlock-banner" class="bg-amber-400 text-amber-950 font-bold px-4 py-3 shadow-md flex justify-between items-center text-lg">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-volume-high text-2xl"></i>
+            <span>알람 소리를 정상적으로 듣기 위해 화면을 터치해주세요.</span>
+        </div>
+        <button onclick="enableAudioContext()" class="bg-amber-900 text-white px-4 py-2 rounded-xl text-base font-bold shadow hover:bg-black transition">
+            확인 및 소리 켜기
+        </button>
+    </div>
+
+    <main class="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        
+        <!-- App Header with controls -->
+        <header class="flex justify-between items-center bg-white card-bg p-4 rounded-3xl shadow-md border border-slate-200">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center text-2xl shadow">
+                    <i class="fa-solid fa-bell"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black font-gmarket text-rose-600 leading-tight" id="app-title">효도 알람</h1>
+                    <p class="text-sm font-bold text-slate-500" id="sub-title">시니어 전용 큰글씨 시계</p>
+                </div>
+            </div>
+
+            <!-- Accessibility Quick Controls -->
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleHighContrast()" title="고대비 화면 전환" class="p-3 bg-slate-200 text-slate-800 rounded-2xl text-lg font-bold flex items-center space-x-1 hover:bg-slate-300">
+                    <i class="fa-solid fa-circle-half-stroke text-xl"></i>
+                    <span class="text-xs hidden sm:inline">고대비</span>
+                </button>
+                <button onclick="speakCurrentTime()" title="현재 시각 읽기" class="p-3 bg-indigo-600 text-white rounded-2xl text-lg font-bold flex items-center space-x-1 hover:bg-indigo-700 shadow">
+                    <i class="fa-solid fa-volume-high text-xl"></i>
+                    <span class="text-xs hidden sm:inline">시각 읽기</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="bg-white card-bg p-6 rounded-3xl shadow-lg border-2 border-indigo-100 text-center space-y-3 relative overflow-hidden">
+            <div class="inline-block bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-full text-lg font-extrabold" id="current-date-display">
+                2026년 10월 8일 목요일
+            </div>
+            
+            <div class="text-6xl sm:text-7xl font-black tracking-tight font-gmarket my-2 text-slate-800 flex justify-center items-baseline space-x-2" id="current-time-display">
+                <span id="time-ampm" class="text-3xl sm:text-4xl text-indigo-600">오전</span>
+                <span id="time-clock">00:00:00</span>
+            </div>
+
+            <div class="flex justify-center items-center space-x-2 pt-2">
+                <button onclick="speakCurrentTime()" class="w-full py-3 bg-indigo-100 text-indigo-800 rounded-2xl font-extrabold text-xl hover:bg-indigo-200 transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-bullhorn text-2xl"></i>
+                    <span>지금 몇 시인지 음성으로 듣기</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="bg-white card-bg p-5 rounded-3xl shadow-md border border-slate-200 space-y-4">
+            <h2 class="text-xl font-extrabold text-slate-800 flex items-center space-x-2">
+                <i class="fa-solid fa-bolt text-amber-500 text-2xl"></i>
+                <span>한 번 누르면 바로 설정되는 자주 쓰는 알람</span>
+            </h2>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <button onclick="addPresetAlarm('약 먹을 시간', 30, '💊')" class="p-4 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-2xl border-2 border-rose-200 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">💊</span>
+                    <span class="text-lg">30분 뒤 약 복용</span>
+                </button>
+
+                <button onclick="addPresetAlarm('식사 시간', 60, '🍚')" class="p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-2xl border-2 border-amber-200 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">🍚</span>
+                    <span class="text-lg">1시간 뒤 식사</span>
+                </button>
+
+                <button onclick="addPresetAlarm('물 마시기', 15, '💧')" class="p-4 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-2xl border-2 border-blue-200 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">💧</span>
+                    <span class="text-lg">15분 뒤 물 마시기</span>
+                </button>
+
+                <button onclick="addPresetAlarm('병원 예약', 120, '🏥')" class="p-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-2xl border-2 border-emerald-200 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">🏥</span>
+                    <span class="text-lg">2시간 뒤 병원</span>
+                </button>
+
+                <button onclick="addPresetAlarm('산책 시간', 45, '🚶')" class="p-4 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-2xl border-2 border-purple-200 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">🚶</span>
+                    <span class="text-lg">45분 뒤 산책</span>
+                </button>
+
+                <button onclick="openAddAlarmModal()" class="p-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl border-2 border-dashed border-slate-300 font-extrabold flex flex-col items-center justify-center text-center space-y-1 transition">
+                    <span class="text-3xl">➕</span>
+                    <span class="text-lg">시간 직접 입력</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex justify-between items-center px-1">
+                <h2 class="text-2xl font-black text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-list-check text-indigo-600"></i>
+                    <span>등록된 알람 목록 (<span id="alarm-count">0</span>개)</span>
+                </h2>
+                <button onclick="openAddAlarmModal()" class="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-2xl shadow-lg flex items-center space-x-2 text-lg transition">
+                    <i class="fa-solid fa-plus text-xl"></i>
+                    <span>새 알람 만들기</span>
+                </button>
+            </div>
+
+            <div id="alarm-list" class="space-y-3">
+                <!-- Alarm items rendered via JS -->
+            </div>
+
+            <!-- Empty state illustration -->
+            <div id="empty-alarm-notice" class="bg-white card-bg p-8 rounded-3xl text-center border border-slate-200 shadow-sm space-y-3">
+                <div class="text-5xl text-slate-300">⏰</div>
+                <p class="text-xl font-bold text-slate-500">등록된 알람이 없습니다.</p>
+                <p class="text-base text-slate-400">위의 버튼을 눌러 필요한 알람을 쉽게 추가해보세요!</p>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="add-alarm-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white card-bg rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-6 border-2 border-slate-300 my-8">
+            <div class="flex justify-between items-center border-b pb-4">
+                <h3 class="text-2xl font-black text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-clock text-rose-600"></i>
+                    <span>새 알람 맞추기</span>
+                </h3>
+                <button onclick="closeAddAlarmModal()" class="text-slate-400 hover:text-slate-700 text-3xl font-bold px-2">✕</button>
+            </div>
+
+            <form id="alarm-form" onsubmit="handleSaveAlarm(event)" class="space-y-6">
+                <!-- Time Selector -->
+                <div>
+                    <label class="block text-lg font-extrabold text-slate-700 mb-2">1. 시간 선택</label>
+                    <div class="flex items-center justify-center space-x-2 bg-slate-100 p-4 rounded-2xl border border-slate-300">
+                        <!-- Hour -->
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs font-bold text-slate-500 mb-1">시 (Hour)</span>
+                            <select id="modal-hour" class="text-3xl font-black p-3 bg-white border-2 border-slate-400 rounded-2xl text-center focus:ring-4 focus:ring-rose-300 outline-none">
+                                <!-- Options dynamically generated -->
+                            </select>
+                        </div>
+                        <span class="text-4xl font-black text-slate-400 pt-5">:</span>
+                        <!-- Minute -->
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs font-bold text-slate-500 mb-1">분 (Minute)</span>
+                            <select id="modal-minute" class="text-3xl font-black p-3 bg-white border-2 border-slate-400 rounded-2xl text-center focus:ring-4 focus:ring-rose-300 outline-none">
+                                <!-- Options dynamically generated -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Label & Preset selector -->
+                <div>
+                    <label class="block text-lg font-extrabold text-slate-700 mb-2">2. 어떤 알람인가요?</label>
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <button type="button" onclick="setModalLabel('약 먹을 시간', '💊')" class="p-2 border-2 border-slate-300 rounded-xl font-bold hover:bg-rose-50 hover:border-rose-300 text-base flex items-center justify-center space-x-1">
+                            <span>💊</span><span>약 복용</span>
+                        </button>
+                        <button type="button" onclick="setModalLabel('식사 시간', '🍚')" class="p-2 border-2 border-slate-300 rounded-xl font-bold hover:bg-amber-50 hover:border-amber-300 text-base flex items-center justify-center space-x-1">
+                            <span>🍚</span><span>식사</span>
+                        </button>
+                        <button type="button" onclick="setModalLabel('병원 예약', '🏥')" class="p-2 border-2 border-slate-300 rounded-xl font-bold hover:bg-emerald-50 hover:border-emerald-300 text-base flex items-center justify-center space-x-1">
+                            <span>🏥</span><span>병원</span>
+                        </button>
+                    </div>
+                    <div class="flex space-x-2">
+                        <input type="text" id="modal-icon" value="⏰" readonly class="w-16 text-2xl text-center bg-slate-100 border-2 border-slate-300 rounded-2xl font-bold">
+                        <input type="text" id="modal-label" required placeholder="알람 이름을 입력하세요" class="flex-1 text-xl p-3 border-2 border-slate-300 rounded-2xl font-bold focus:ring-4 focus:ring-rose-300 outline-none">
+                    </div>
+                </div>
+
+                <!-- Repeating days -->
+                <div>
+                    <label class="block text-lg font-extrabold text-slate-700 mb-2">3. 반복 설정</label>
+                    <div class="flex justify-between gap-1" id="repeat-days-container">
+                        <button type="button" data-day="0" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-rose-600">일</button>
+                        <button type="button" data-day="1" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-slate-700">월</button>
+                        <button type="button" data-day="2" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-slate-700">화</button>
+                        <button type="button" data-day="3" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-slate-700">수</button>
+                        <button type="button" data-day="4" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-slate-700">목</button>
+                        <button type="button" data-day="5" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-slate-700">금</button>
+                        <button type="button" data-day="6" onclick="toggleRepeatDay(this)" class="repeat-day-btn flex-1 py-3 bg-slate-100 border-2 border-slate-300 rounded-xl font-black text-blue-600">토</button>
+                    </div>
+                    <p class="text-xs text-slate-500 font-bold mt-2">* 아무 요일도 선택하지 않으면 오늘/내일 1회만 울립니다.</p>
+                </div>
+
+                <!-- Sound Option -->
+                <div>
+                    <label class="block text-lg font-extrabold text-slate-700 mb-2">4. 소리 및 음성 읽어주기</label>
+                    <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <div class="flex items-center justify-between">
+                            <span class="font-extrabold text-slate-800 text-lg">📢 글자 음성으로 읽기</span>
+                            <input type="checkbox" id="modal-tts" checked class="w-7 h-7 accent-rose-600 rounded">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="font-extrabold text-slate-800 text-lg">🔊 알람 소리 종류</span>
+                            <select id="modal-sound" class="text-lg p-2 border-2 border-slate-300 rounded-xl font-bold bg-white">
+                                <option value="loud">시끄러운 사이렌 알람</option>
+                                <option value="gentle">부드러운 벨소리</option>
+                                <option value="chime">맑은 차임벨</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="flex space-x-3 pt-4 border-t">
+                    <button type="button" onclick="closeAddAlarmModal()" class="w-1/2 py-4 bg-slate-200 text-slate-800 font-black text-xl rounded-2xl hover:bg-slate-300">
+                        취소
+                    </button>
+                    <button type="submit" class="w-1/2 py-4 bg-rose-600 text-white font-black text-xl rounded-2xl shadow-lg hover:bg-rose-700 primary">
+                        알람 저장하기
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="alarm-trigger-overlay" class="fixed inset-0 z-50 hidden flex-col justify-between p-6 alarm-active-bg text-white text-center">
+        <!-- Top Status -->
+        <div class="pt-8">
+            <span class="inline-block bg-white/20 text-white text-2xl font-black px-6 py-2 rounded-full backdrop-blur-md">
+                ⏰ 알람이 울리고 있습니다!
+            </span>
+        </div>
+
+        <!-- Center Main Content -->
+        <div class="space-y-6 my-auto">
+            <div id="trigger-icon" class="text-9xl">💊</div>
+            <div id="trigger-label" class="text-5xl sm:text-6xl font-black font-gmarket text-yellow-300 drop-shadow-md">
+                약 먹을 시간입니다!
+            </div>
+            <div id="trigger-time" class="text-3xl font-bold opacity-90">
+                오후 02:30
+            </div>
+        </div>
+
+        <!-- Giant Buttons for Seniors -->
+        <div class="space-y-4 pb-8 max-w-md mx-auto w-full">
+            <button onclick="dismissTriggeredAlarm()" class="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-3xl rounded-3xl shadow-2xl border-4 border-white transition flex items-center justify-center space-x-3">
+                <i class="fa-solid fa-check-circle text-4xl"></i>
+                <span>알람 끄기 (확인했음)</span>
+            </button>
+
+            <button onclick="snoozeTriggeredAlarm(5)" class="w-full py-5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-2xl rounded-3xl shadow-xl border-2 border-amber-200 transition flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-clock-rotate-left text-3xl"></i>
+                <span>5분 뒤 다시 알림 (스누즈)</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let alarms = [];
+        let audioCtx = null;
+        let alarmInterval = null;
+        let activeRingtoneTimer = null;
+        let currentTriggeredAlarm = null;
+        let isHighContrast = false;
+        let selectedRepeatDays = [];
+
+        // Load alarms on boot
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAlarmsFromStorage();
+            populateTimeSelects();
+            startClock();
+            renderAlarms();
+
+            // Set up user interaction listener to resume web audio
+            document.body.addEventListener('click', enableAudioContext, { once: false });
+        });
+
+        function enableAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const banner = document.getElementById('audio-unlock-banner');
+            if (banner) banner.style.display = 'none';
+        }
+
+        function playSynthesizedSound(type) {
+            if (!audioCtx) enableAudioContext();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'loud') {
+                // Siren alarm sound
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.6);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.6);
+            } else if (type === 'gentle') {
+                // Pleasant chime tone
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.15);
+
+                    gain.gain.setValueAtTime(0.2, now + i * 0.15);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.5);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start(now + i * 0.15);
+                    osc.stop(now + i * 0.15 + 0.5);
+                });
+            } else {
+                // Chime beep
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.setValueAtTime(900, now + 0.2);
+
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancel ongoing speech
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ko-KR';
+                utterance.rate = 0.85; // Speak slightly slower for seniors
+                utterance.pitch = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function speakCurrentTime() {
+            enableAudioContext();
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = now.getMinutes();
+            const ampm = hours >= 12 ? '오후' : '오전';
+            hours = hours % 12 || 12;
+
+            const timeStr = `현재 시각은 ${ampm} ${hours}시 ${minutes === 0 ? '정각' : minutes + '분'}입니다.`;
+            speakText(timeStr);
+        }
+
+        function startClock() {
+            updateClockDisplay();
+            setInterval(() => {
+                updateClockDisplay();
+                checkAlarms();
+            }, 1000);
+        }
+
+        function updateClockDisplay() {
+            const now = new Date();
+            
+            // Date String
+            const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+            const dayName = days[now.getDay()];
+            
+            document.getElementById('current-date-display').innerText = `${year}년 ${month}월 ${date}일 ${dayName}`;
+
+            // Time String
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const ampm = hours >= 12 ? '오후' : '오전';
+            
+            hours = hours % 12 || 12;
+            const hoursFormatted = String(hours).padStart(2, '0');
+
+            document.getElementById('time-ampm').innerText = ampm;
+            document.getElementById('time-clock').innerText = `${hoursFormatted}:${minutes}:${seconds}`;
+        }
+
+        function checkAlarms() {
+            const now = new Date();
+            const currentHour = String(now.getHours()).padStart(2, '0');
+            const currentMinute = String(now.getMinutes()).padStart(2, '0');
+            const currentSecond = now.getSeconds();
+            const currentDay = now.getDay(); // 0: Sun, 1: Mon, ...
+
+            if (currentSecond !== 0) return; // Trigger on the exact start of minute
+
+            alarms.forEach(alarm => {
+                if (!alarm.active) return;
+
+                // Check repeat days match
+                if (alarm.repeatDays && alarm.repeatDays.length > 0) {
+                    if (!alarm.repeatDays.includes(currentDay)) return;
+                }
+
+                if (alarm.time === `${currentHour}:${currentMinute}`) {
+                    triggerAlarm(alarm);
+                }
+            });
+        }
+
+        function triggerAlarm(alarm) {
+            currentTriggeredAlarm = alarm;
+            
+            // Show Overlay
+            const overlay = document.getElementById('alarm-trigger-overlay');
+            document.getElementById('trigger-icon').innerText = alarm.icon || '⏰';
+            document.getElementById('trigger-label').innerText = alarm.label || '알람 시간입니다!';
+
+            // Format trigger time text
+            const [h, m] = alarm.time.split(':');
+            let hourNum = parseInt(h);
+            const ampm = hourNum >= 12 ? '오후' : '오전';
+            hourNum = hourNum % 12 || 12;
+            document.getElementById('trigger-time').innerText = `${ampm} ${String(hourNum).padStart(2, '0')}:${m}`;
+
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+
+            // Play Continuous Sound
+            if (activeRingtoneTimer) clearInterval(activeRingtoneTimer);
+            
+            playSynthesizedSound(alarm.sound || 'loud');
+            activeRingtoneTimer = setInterval(() => {
+                playSynthesizedSound(alarm.sound || 'loud');
+            }, 1200);
+
+            // TTS Voice Announcement
+            if (alarm.useTTS) {
+                const message = `${alarm.label}. ${alarm.label} 시간입니다. 확인하시고 알람을 꺼주세요.`;
+                speakText(message);
+            }
+        }
+
+        function dismissTriggeredAlarm() {
+            if (activeRingtoneTimer) {
+                clearInterval(activeRingtoneTimer);
+                activeRingtoneTimer = null;
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+
+            const overlay = document.getElementById('alarm-trigger-overlay');
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+
+            // If non-repeating alarm, turn off
+            if (currentTriggeredAlarm && (!currentTriggeredAlarm.repeatDays || currentTriggeredAlarm.repeatDays.length === 0)) {
+                currentTriggeredAlarm.active = false;
+                saveAlarmsToStorage();
+                renderAlarms();
+            }
+
+            currentTriggeredAlarm = null;
+        }
+
+        function snoozeTriggeredAlarm(minutes) {
+            dismissTriggeredAlarm();
+            
+            // Create a snooze alarm for X minutes later
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + minutes);
+
+            const snoozeHour = String(now.getHours()).padStart(2, '0');
+            const snoozeMinute = String(now.getMinutes()).padStart(2, '0');
+
+            const snoozeAlarm = {
+                id: 'snooze_' + Date.now(),
+                time: `${snoozeHour}:${snoozeMinute}`,
+                label: `[스누즈] ${currentTriggeredAlarm ? currentTriggeredAlarm.label : '알람'}`,
+                icon: '⏳',
+                active: true,
+                repeatDays: [],
+                sound: currentTriggeredAlarm ? currentTriggeredAlarm.sound : 'loud',
+                useTTS: true
+            };
+
+            alarms.unshift(snoozeAlarm);
+            saveAlarmsToStorage();
+            renderAlarms();
+
+            speakText(`${minutes}분 뒤에 알람이 다시 울립니다.`);
+        }
+
+        function renderAlarms() {
+            const listContainer = document.getElementById('alarm-list');
+            const emptyNotice = document.getElementById('empty-alarm-notice');
+            const countDisplay = document.getElementById('alarm-count');
+
+            countDisplay.innerText = alarms.length;
+
+            if (alarms.length === 0) {
+                listContainer.innerHTML = '';
+                emptyNotice.classList.remove('hidden');
+                return;
+            }
+
+            emptyNotice.classList.add('hidden');
+            listContainer.innerHTML = '';
+
+            alarms.forEach(alarm => {
+                const card = document.createElement('div');
+                card.className = `bg-white card-bg p-5 rounded-3xl shadow-md border-2 transition-all flex items-center justify-between space-x-4 ${alarm.active ? 'border-rose-200' : 'border-slate-200 opacity-60'}`;
+
+                const [h, m] = alarm.time.split(':');
+                let hourNum = parseInt(h);
+                const ampm = hourNum >= 12 ? '오후' : '오전';
+                hourNum = hourNum % 12 || 12;
+                const formattedTime = `${ampm} ${String(hourNum).padStart(2, '0')}:${m}`;
+
+                const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                let repeatText = '1회성 알람';
+                if (alarm.repeatDays && alarm.repeatDays.length > 0) {
+                    if (alarm.repeatDays.length === 7) repeatText = '매일 반복';
+                    else repeatText = alarm.repeatDays.map(d => dayNames[d]).join(', ') + ' 반복';
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <div class="text-4xl p-3 bg-slate-100 rounded-2xl flex items-center justify-center">
+                            ${alarm.icon || '⏰'}
+                        </div>
+                        <div>
+                            <div class="text-3xl font-black text-slate-800 font-gmarket">
+                                ${formattedTime}
+                            </div>
+                            <div class="text-lg font-bold text-rose-600">
+                                ${alarm.label}
+                            </div>
+                            <div class="text-xs font-bold text-slate-400">
+                                ${repeatText} ${alarm.useTTS ? '• 음성안내 켜짐' : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <!-- Toggle switch -->
+                        <button onclick="toggleAlarmActive('${alarm.id}')" class="px-4 py-2 rounded-2xl font-black text-base shadow ${alarm.active ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-slate-700'}">
+                            ${alarm.active ? '켜짐' : '꺼짐'}
+                        </button>
+
+                        <!-- Delete Button -->
+                        <button onclick="deleteAlarm('${alarm.id}')" class="p-3 text-slate-400 hover:text-rose-600 text-2xl font-bold">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+
+                listContainer.appendChild(card);
+            });
+        }
+
+        function toggleAlarmActive(id) {
+            const alarm = alarms.find(a => a.id === id);
+            if (alarm) {
+                alarm.active = !alarm.active;
+                saveAlarmsToStorage();
+                renderAlarms();
+            }
+        }
+
+        function deleteAlarm(id) {
+            alarms = alarms.filter(a => a.id !== id);
+            saveAlarmsToStorage();
+            renderAlarms();
+        }
+
+        function addPresetAlarm(label, minutesFromNow, icon) {
+            enableAudioContext();
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + minutesFromNow);
+
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+
+            const newAlarm = {
+                id: 'alarm_' + Date.now(),
+                time: `${h}:${m}`,
+                label: label,
+                icon: icon,
+                active: true,
+                repeatDays: [],
+                sound: 'loud',
+                useTTS: true
+            };
+
+            alarms.unshift(newAlarm);
+            saveAlarmsToStorage();
+            renderAlarms();
+
+            let hourNum = parseInt(h);
+            const ampm = hourNum >= 12 ? '오후' : '오전';
+            hourNum = hourNum % 12 || 12;
+
+            speakText(`${label} 알람이 ${ampm} ${hourNum}시 ${m}분으로 설정되었습니다.`);
+        }
+
+        function populateTimeSelects() {
+            const hourSelect = document.getElementById('modal-hour');
+            const minuteSelect = document.getElementById('modal-minute');
+
+            hourSelect.innerHTML = '';
+            minuteSelect.innerHTML = '';
+
+            for (let i = 0; i < 24; i++) {
+                const opt = document.createElement('option');
+                opt.value = String(i).padStart(2, '0');
+                const ampm = i >= 12 ? '오후' : '오전';
+                const displayH = i % 12 || 12;
+                opt.innerText = `${ampm} ${displayH}시 (${String(i).padStart(2, '0')}시)`;
+                hourSelect.appendChild(opt);
+            }
+
+            for (let i = 0; i < 60; i += 5) {
+                const opt = document.createElement('option');
+                opt.value = String(i).padStart(2, '0');
+                opt.innerText = `${String(i).padStart(2, '0')}분`;
+                minuteSelect.appendChild(opt);
+            }
+
+            // Set default to current time rounded
+            const now = new Date();
+            hourSelect.value = String(now.getHours()).padStart(2, '0');
+            minuteSelect.value = String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0');
+        }
+
+        function openAddAlarmModal() {
+            enableAudioContext();
+            selectedRepeatDays = [];
+            updateRepeatDayButtonsUI();
+            document.getElementById('modal-label').value = '';
+            document.getElementById('modal-icon').value = '⏰';
+            document.getElementById('add-alarm-modal').classList.remove('hidden');
+            document.getElementById('add-alarm-modal').classList.add('flex');
+        }
+
+        function closeAddAlarmModal() {
+            document.getElementById('add-alarm-modal').classList.add('hidden');
+            document.getElementById('add-alarm-modal').classList.remove('flex');
+        }
+
+        function setModalLabel(text, icon) {
+            document.getElementById('modal-label').value = text;
+            document.getElementById('modal-icon').value = icon;
+        }
+
+        function toggleRepeatDay(btn) {
+            const day = parseInt(btn.getAttribute('data-day'));
+            if (selectedRepeatDays.includes(day)) {
+                selectedRepeatDays = selectedRepeatDays.filter(d => d !== day);
+            } else {
+                selectedRepeatDays.push(day);
+            }
+            updateRepeatDayButtonsUI();
+        }
+
+        function updateRepeatDayButtonsUI() {
+            const buttons = document.querySelectorAll('.repeat-day-btn');
+            buttons.forEach(btn => {
+                const day = parseInt(btn.getAttribute('data-day'));
+                if (selectedRepeatDays.includes(day)) {
+                    btn.classList.add('bg-rose-600', 'text-white');
+                    btn.classList.remove('bg-slate-100', 'text-slate-700', 'text-rose-600', 'text-blue-600');
+                } else {
+                    btn.classList.remove('bg-rose-600', 'text-white');
+                    btn.classList.add('bg-slate-100');
+                    if (day === 0) btn.classList.add('text-rose-600');
+                    else if (day === 6) btn.classList.add('text-blue-600');
+                    else btn.classList.add('text-slate-700');
+                }
+            });
+        }
+
+        function handleSaveAlarm(e) {
+            e.preventDefault();
+            const h = document.getElementById('modal-hour').value;
+            const m = document.getElementById('modal-minute').value;
+            const label = document.getElementById('modal-label').value || '알람';
+            const icon = document.getElementById('modal-icon').value || '⏰';
+            const sound = document.getElementById('modal-sound').value;
+            const useTTS = document.getElementById('modal-tts').checked;
+
+            const newAlarm = {
+                id: 'alarm_' + Date.now(),
+                time: `${h}:${m}`,
+                label: label,
+                icon: icon,
+                active: true,
+                repeatDays: [...selectedRepeatDays],
+                sound: sound,
+                useTTS: useTTS
+            };
+
+            alarms.unshift(newAlarm);
+            saveAlarmsToStorage();
+            renderAlarms();
+            closeAddAlarmModal();
+
+            let hourNum = parseInt(h);
+            const ampm = hourNum >= 12 ? '오후' : '오전';
+            hourNum = hourNum % 12 || 12;
+
+            speakText(`${label} 알람이 성공적으로 저장되었습니다.`);
+        }
+
+        function toggleHighContrast() {
+            isHighContrast = !isHighContrast;
+            const body = document.getElementById('app-body');
+            if (isHighContrast) {
+                body.classList.add('high-contrast');
+            } else {
+                body.classList.remove('high-contrast');
+            }
+        }
+
+        function saveAlarmsToStorage() {
+            try {
+                localStorage.setItem('senior_alarms', JSON.stringify(alarms));
+            } catch (e) {
+                console.error('Storage error', e);
+            }
+        }
+
+        function loadAlarmsFromStorage() {
+            try {
+                const saved = localStorage.getItem('senior_alarms');
+                if (saved) {
+                    alarms = JSON.parse(saved);
+                } else {
+                    // Default sample alarm for seniors
+                    alarms = [
+                        {
+                            id: 'default_1',
+                            time: '08:00',
+                            label: '아침 약 복용',
+                            icon: '💊',
+                            active: true,
+                            repeatDays: [0, 1, 2, 3, 4, 5, 6],
+                            sound: 'loud',
+                            useTTS: true
+                        },
+                        {
+                            id: 'default_2',
+                            time: '12:30',
+                            label: '점심 식사 시간',
+                            icon: '🍚',
+                            active: true,
+                            repeatDays: [0, 1, 2, 3, 4, 5, 6],
+                            sound: 'gentle',
+                            useTTS: true
+                        }
+                    ];
+                }
+            } catch (e) {
+                alarms = [];
+            }
+        }
+    </script>
+</body>
+</html>
